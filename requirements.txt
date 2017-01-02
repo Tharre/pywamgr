@@ -1,0 +1,4 @@
+beautifulsoup4
+docopt
+pyyaml
+requests
