@@ -3,8 +3,8 @@
 
 Usage:
     wad.py install <addon>...
-    wad.py remove <addon>...
     wad.py update (<addon>... | --all)
+    wad.py remove <addon>...
     wad.py -h | --help
     wad.py --version
 
@@ -121,25 +121,7 @@ if __name__ == '__main__':
     if not isfile(cfg['wow_directory'] + '/Wow.exe'):
         print('Warning: no WoW installation found at ' + cfg['wow_directory'])
 
-    if args['install']:
-        with Pool(32) as p:
-            for addon in args['<addon>']:
-                # check if addon is already installed
-                if addon in cfg['addons']:
-                    print(addon + ' is already installed.')
-                    continue
-
-                print('Installing ' + addon + ' ...')
-                p.apply_async(update_addon, args = (addon, install_dir))
-                cfg['addons'].append(addon)
-                cfg_changed = True
-
-            p.close()
-            p.join()
-    if args['remove']:
-        for addon in args['<addon>']:
-            print('Not implemented')
-    if args['update']:
+    if args['install'] or args['update']:
         if args['--all']:
             addons = cfg['addons']
         else:
@@ -147,10 +129,17 @@ if __name__ == '__main__':
 
         with Pool(32) as p:
             for addon in addons:
+                if not addon in cfg['addons']:
+                    cfg['addons'].append(addon)
+                    cfg_changed = True
+
                 p.apply_async(update_addon, args = (addon, install_dir))
 
             p.close()
             p.join()
+    if args['remove']:
+        for addon in args['<addon>']:
+            print('Not implemented')
 
     # save new configuration
     if cfg_changed:
