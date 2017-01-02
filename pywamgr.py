@@ -2,11 +2,11 @@
 """pywamgr - The Python WoW Addon Manager
 
 Usage:
-    wad.py install <addon>...
-    wad.py update (<addon>... | --all)
-    wad.py remove <addon>...
-    wad.py -h | --help
-    wad.py --version
+    pywamgr.py install <addon>...
+    pywamgr.py update (<addon>... | --all)
+    pywamgr.py remove <addon>...
+    pywamgr.py -h | --help
+    pywamgr.py --version
 
 Options:
     -h --help  Show this screen.
