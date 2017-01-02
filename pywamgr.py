@@ -18,14 +18,15 @@ Options:
 from bs4 import BeautifulSoup, SoupStrainer
 from docopt import docopt
 from multiprocessing import Pool
-from os import makedirs
 from os.path import expanduser, dirname, basename, isfile, isdir, splitext
 from zipfile import ZipFile
 import gzip
 import hashlib
 import io
 import json
+import os
 import requests
+import shutil
 import sys
 import yaml
 
@@ -61,7 +62,7 @@ def update_addon(addon, outpath):
             print(addon + ' seems to be broken. Reinstalling.')
     except:
         try:
-            makedirs(cachepath)
+            os.makedirs(cachepath)
         except:
             pass
 
@@ -77,7 +78,7 @@ def update_addon(addon, outpath):
             path = outpath + name
 
             try:
-                makedirs(dirname(path))
+                os.makedirs(dirname(path))
             except:
                 pass
 
@@ -171,7 +172,32 @@ if __name__ == '__main__':
             p.join()
     if args['remove']:
         for addon in args['<addon>']:
-            print('Not implemented')
+            cachepath = '.cache/' + addon
+
+            cfg['addons'].remove(addon)
+            cfg_changed = True
+
+            try:
+                with gzip.open(cachepath + '/MTREE', 'rt') as data_file:
+                    data = json.load(data_file)
+
+                for entry in data:
+                    try:
+                        os.remove(install_dir + entry[0])
+                    except FileNotFoundError:
+                        pass
+
+                for root, dirs, _ in os.walk(install_dir, topdown=False):
+                    for name in dirs:
+                        try:
+                            os.rmdir(os.path.join(root, name))
+                        except OSError:
+                            pass
+
+                shutil.rmtree(cachepath)
+            except FileNotFoundError:
+                print('ERROR: MTREE for ' + addon + ' could not be found.'
+                      ' Nothing has been removed.')
 
     # save new configuration
     if cfg_changed:
