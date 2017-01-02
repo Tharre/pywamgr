@@ -54,8 +54,11 @@ def update_addon(addon, outpath):
             old_version = fd.read()
 
         if old_version == new_version:
-            print(addon + ' is already up-to-date.')
-            return
+            if check_addon(addon, outpath):
+                print(addon + ' is already up-to-date.')
+                return
+
+            print(addon + ' seems to be broken. Reinstalling.')
     except:
         try:
             makedirs(cachepath)
@@ -89,12 +92,41 @@ def update_addon(addon, outpath):
                     m.update(chunk)
                     out.write(chunk)
 
-            mtree.append([m.hexdigest(), name])
+            mtree.append([name, m.hexdigest()])
 
         with gzip.open(cachepath + '/MTREE', 'wt') as gz:
             json.dump(mtree, gz)
 
     print('Finished installing ' + addon + '.')
+
+# Check if addon is correctly installed
+def check_addon(addon, addons_dir):
+    cachepath = '.cache/' + addon
+    try:
+        with gzip.open(cachepath + '/MTREE', 'rt') as data_file:
+            data = json.load(data_file)
+    except:
+        # cache file does not exist
+        return False
+
+    for entry in data:
+        m = hashlib.sha256()
+        try:
+            with open(addons_dir + entry[0], 'rb') as f:
+                while True:
+                    chunk = f.read(4096)
+                    if not chunk:
+                        break
+                    m.update(chunk)
+
+            if m.hexdigest() != entry[1]:
+                # hash doen't match
+                return False
+        except FileNotFoundError:
+            # addon file is missing
+            return False
+
+    return True
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='0.1-alpha')
