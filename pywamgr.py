@@ -44,7 +44,7 @@ def get_curse_addon_url(addon):
     return link.replace('http://addons.curse', 'https://addons-origin')
 
 # Updates addon if it's not already up-to-date
-def update_addon(addon, outpath):
+def update_addon(addon, addons_dir):
     url = get_curse_addon_url(addon)
 
     new_version = splitext(basename(url))[0]
@@ -55,12 +55,16 @@ def update_addon(addon, outpath):
             old_version = fd.read()
 
         if old_version == new_version:
-            if check_addon(addon, outpath):
+            if check_addon(addon, addons_dir):
                 print(addon + ' is already up-to-date.')
                 return
 
             print(addon + ' seems to be broken. Reinstalling.')
-    except:
+
+        remove_addon(addon, addons_dir)
+        print('Updating ' + addon + ' (' + old_version + ' -> ' + new_version
+                + ')')
+    except OSError:
         try:
             os.makedirs(cachepath)
         except:
@@ -75,7 +79,7 @@ def update_addon(addon, outpath):
     with ZipFile(io.BytesIO(r.content)) as z:
         for name in z.namelist():
             m = hashlib.sha256()
-            path = outpath + name
+            path = addons_dir + name
 
             try:
                 os.makedirs(dirname(path))
@@ -129,6 +133,29 @@ def check_addon(addon, addons_dir):
 
     return True
 
+def remove_addon(addon, addons_dir):
+    cachepath = '.cache/' + addon
+
+    try:
+        with gzip.open(cachepath + '/MTREE', 'rt') as data_file:
+            data = json.load(data_file)
+
+        for entry in data:
+            try:
+                os.remove(addons_dir + entry[0])
+            except FileNotFoundError:
+                pass
+
+        for root, dirs, _ in os.walk(addons_dir, topdown=False):
+            for name in dirs:
+                try:
+                    os.rmdir(os.path.join(root, name))
+                except OSError:
+                    pass
+    except FileNotFoundError:
+        print('ERROR: MTREE for ' + addon + ' could not be found.'
+              ' Nothing has been removed.')
+
 if __name__ == '__main__':
     args = docopt(__doc__, version='0.1-alpha')
     print(args)
@@ -172,32 +199,15 @@ if __name__ == '__main__':
             p.join()
     if args['remove']:
         for addon in args['<addon>']:
-            cachepath = '.cache/' + addon
-
-            cfg['addons'].remove(addon)
-            cfg_changed = True
-
             try:
-                with gzip.open(cachepath + '/MTREE', 'rt') as data_file:
-                    data = json.load(data_file)
+                cfg['addons'].remove(addon)
+                cfg_changed = True
+            except ValueError:
+                print(addon + " is not installed and thus cannot be removed.")
+                continue
 
-                for entry in data:
-                    try:
-                        os.remove(install_dir + entry[0])
-                    except FileNotFoundError:
-                        pass
-
-                for root, dirs, _ in os.walk(install_dir, topdown=False):
-                    for name in dirs:
-                        try:
-                            os.rmdir(os.path.join(root, name))
-                        except OSError:
-                            pass
-
-                shutil.rmtree(cachepath)
-            except FileNotFoundError:
-                print('ERROR: MTREE for ' + addon + ' could not be found.'
-                      ' Nothing has been removed.')
+            remove_addon(addon, install_dir)
+            shutil.rmtree('.cache/' + addon)
 
     # save new configuration
     if cfg_changed:
