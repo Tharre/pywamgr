@@ -17,8 +17,7 @@ Options:
 
 from bs4 import BeautifulSoup, SoupStrainer
 from docopt import docopt
-from multiprocessing import Pool
-from os.path import expanduser, dirname, basename, isfile, isdir, splitext
+from os.path import expanduser, dirname, basename, isfile, isdir
 from zipfile import ZipFile
 import gzip
 import hashlib
@@ -30,24 +29,23 @@ import shutil
 import sys
 import yaml
 
-def get_curse_addon_url(addon):
-    base_url = 'https://mods.curse.com/addons/wow/'
-    headers = {'user-agent': 'Mozilla/5.0'} # TODO: not needed?
+def get_curse_addon_data(addon):
+    base_url = 'https://www.curseforge.com/wow/addons/{}/'.format(addon)
+    project_url = base_url + 'files?sort=releasetype'
 
-    r = requests.get(base_url + addon + '/download', headers=headers)
-
+    r = requests.get(project_url)
     soup = BeautifulSoup(r.content, 'html.parser', parse_only=SoupStrainer('a'))
+    elem = soup.find('a', {'class': 'mg-r-05'})['data-action-value']
+    data = json.loads(elem)
 
-    link = soup.find('a', {'class': 'download-link'})['data-href']
-
-    # replace http url with https
-    return link.replace('http://addons.curse', 'https://addons-origin')
+    return [data['FileName'].strip(), base_url +
+            "download/{}/file".format(data['ProjectFileID'])]
 
 # Updates addon if it's not already up-to-date
 def update_addon(addon, addons_dir):
-    url = get_curse_addon_url(addon)
+    project_data = get_curse_addon_data(addon)
 
-    new_version = splitext(basename(url))[0]
+    new_version = project_data[0]
     cachepath = '.cache/' + addon
     version_file = cachepath + '/VERSION'
     try:
@@ -73,7 +71,7 @@ def update_addon(addon, addons_dir):
     with open(version_file, 'w') as out:
         out.write(new_version)
 
-    r = requests.get(url, stream=True)
+    r = requests.get(project_data[1], stream=True)
 
     mtree = []
     with ZipFile(io.BytesIO(r.content)) as z:
@@ -158,7 +156,6 @@ def remove_addon(addon, addons_dir):
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='0.1-alpha')
-    print(args)
 
     config_file = expanduser('~/.pywamgr.yaml')
 
@@ -173,7 +170,6 @@ if __name__ == '__main__':
             addons: []
         """)
 
-    print(cfg)
     cfg_changed = False
     install_dir = cfg['wow_directory'] + '/Interface/AddOns/'
 
@@ -187,16 +183,13 @@ if __name__ == '__main__':
         else:
             addons = args['<addon>']
 
-        with Pool(32) as p:
-            for addon in addons:
-                if not addon in cfg['addons']:
-                    cfg['addons'].append(addon)
-                    cfg_changed = True
+        for addon in addons:
+            if not addon in cfg['addons']:
+                cfg['addons'].append(addon)
+                cfg_changed = True
 
-                p.apply_async(update_addon, args = (addon, install_dir))
+            update_addon(addon, install_dir)
 
-            p.close()
-            p.join()
     if args['remove']:
         for addon in args['<addon>']:
             try:
